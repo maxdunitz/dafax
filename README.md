@@ -35,7 +35,8 @@ minted the token. No image, no name, no address.
 brew install --cask google-cloud-sdk
 gcloud auth login
 gcloud config set project YOUR_PROJECT
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com storage.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com storage.googleapis.com
 ```
 
 ### 2. Bucket
