@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Received faxes{% endblock %}
+{% block body %}
+<h1>Received faxes</h1>
+<p class="muted">A test rig. Whatever lands here is deleted within a day by the
+   bucket's lifecycle rule &mdash; only point numbers you own at it.</p>
+{% if not items %}
+  <p>Nothing received yet.</p>
+{% endif %}
+{% for i in items %}
+  <hr>
+  <p><strong>{{ i["from"] or "unknown" }}</strong> &rarr; {{ i["to"] or "?" }}<br>
+     <span class="muted">{{ i["received"] }} &middot;
+     {{ i["pages"] }} page{{ '' if i["pages"] == 1 else 's' }}</span></p>
+  <p><a href="{{ url_for('received_pdf', fax_id=i['fax_id']) }}">Open the PDF
+     the recipient got</a></p>
+{% endfor %}
+{% endblock %}

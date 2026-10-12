@@ -62,13 +62,35 @@ gcloud storage buckets add-iam-policy-binding gs://YOUR_BUCKET \
 
 ### 4. Telnyx
 
-In Mission Control: buy a **fax-capable** number, create a **Programmable Fax**
-application, set its webhook to `https://<your-run-url>/telnyx` (fill in after
-the first deploy). Collect the connection id, the API key, and the account
-public key from Account Settings → Keys & Credentials.
+In Mission Control, in this order:
+
+1. Create a **Programmable Fax application**. Its webhook goes to
+   `https://<your-run-url>/telnyx` — fill that in after the first deploy.
+2. Create an **Outbound Voice Profile** and **assign it to that application**.
+   Outbound faxes are refused without one, and this is the single most common
+   reason a first send fails.
+3. Buy **two fax-capable numbers** and assign both to the application. One is
+   what you send from (`TELNYX_FROM`); the second is only there so you can fax
+   yourself (see Testing).
+4. Collect the **API key**, and the account **public key** from Account
+   Settings → Keys & Credentials.
+
+`TELNYX_CONNECTION_ID` is the **application's** id, not a number's.
 
 Keep the balance low and auto-recharge **off**. That is the hard ceiling on
 what any abuse can cost.
+
+### Testing without a real clerk
+
+Both numbers sit on the same application, so an inbound fax arrives at the same
+`/telnyx` webhook as a status event and gets stored. Send from number one to
+number two, then open `/received` (volunteer login) and read the PDF that
+actually came out the far end.
+
+Do this before faxing any clerk. It is the only honest check that a ballot is
+still legible after passing through 1-bit 204 dpi, and legibility is the most
+likely thing to be wrong. `/received` is a test rig, not storage: the bucket's
+one-day lifecycle rule clears it, and only numbers you own should point at it.
 
 ### 5. Deploy
 

@@ -458,6 +458,13 @@ def telnyx_webhook():
     fax_id = inner.get("fax_id") or inner.get("id")
     print("TELNYX EVENT:", event, fax_id, inner.get("failure_reason") or "")
 
+    # Inbound. Assign a second Telnyx number to the same fax application and
+    # this becomes a closed test loop: fax number one to number two and then
+    # look at what actually came out the other end, which is the only honest
+    # way to check a ballot is still legible after a fax.
+    if event == "fax.received":
+        return receive_fax(inner, fax_id)
+
     pointer = bucket().blob("faxmap/%s" % fax_id)
     if not fax_id or not pointer.exists():
         return "", 204
@@ -484,6 +491,75 @@ def telnyx_webhook():
                 print("cleanup of", name, "failed:", type(e).__name__, e)
 
     return "", 204
+
+
+def receive_fax(inner, fax_id):
+    """Store an inbound fax so a volunteer can look at it.
+
+    This exists to test the pipeline, not to collect ballots: the bucket's
+    one-day lifecycle rule deletes whatever lands here, and the only numbers
+    pointed at it should be ones we own.
+    """
+    url = inner.get("media_url")
+    if not url or not fax_id:
+        return "", 204
+
+    body = None
+    # Telnyx has served this both ways; try authenticated first.
+    for headers in ({"Authorization": "Bearer %s" % TELNYX_API_KEY}, {}):
+        try:
+            r = requests.get(url, headers=headers, timeout=30)
+            if r.ok and r.content:
+                body = r.content
+                break
+        except Exception as e:
+            print("inbound fax fetch failed:", type(e).__name__, e)
+    if not body:
+        print("inbound fax", fax_id, "could not be fetched")
+        return "", 204
+
+    pages = 0
+    try:
+        pages = len(PdfReader(io.BytesIO(body)).pages)
+    except Exception:
+        pass
+
+    bucket().blob("received/%s.pdf" % fax_id).upload_from_string(
+        body, content_type="application/pdf")
+    bucket().blob("received/%s.json" % fax_id).upload_from_string(
+        json.dumps({"fax_id": fax_id, "from": inner.get("from"),
+                    "to": inner.get("to"), "pages": pages,
+                    "received": datetime.datetime.now(
+                        datetime.timezone.utc).isoformat()}),
+        content_type="application/json")
+    print("INBOUND FAX:", fax_id, inner.get("from"), "->", inner.get("to"),
+          pages, "page(s)")
+    return "", 204
+
+
+@app.route("/received")
+@requires_volunteer
+def received_list():
+    items = []
+    for b in bucket().list_blobs(prefix="received/"):
+        if b.name.endswith(".json"):
+            try:
+                items.append(json.loads(b.download_as_bytes()))
+            except Exception:
+                pass
+    items.sort(key=lambda i: i.get("received") or "", reverse=True)
+    return render_template("received.html", items=items)
+
+
+@app.route("/received/<fax_id>.pdf")
+@requires_volunteer
+def received_pdf(fax_id):
+    if not re.match(r"^[A-Za-z0-9_-]{1,64}$", fax_id):
+        abort(404)
+    blob = bucket().blob("received/%s.pdf" % fax_id)
+    if not blob.exists():
+        abort(404)
+    return Response(blob.download_as_bytes(), mimetype="application/pdf")
 
 
 def verify_telnyx(raw):
