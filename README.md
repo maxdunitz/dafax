@@ -55,8 +55,9 @@ gcloud storage buckets update gs://YOUR_BUCKET --lifecycle-file=/tmp/lc.json
 ### 3. Service account
 
 ```sh
-gcloud iam service-accounts create dafax --display-name="ballot fax relay"
-SA=dafax@YOUR_PROJECT.iam.gserviceaccount.com
+# The account id must be 6-30 characters, so "dafax" alone is rejected.
+gcloud iam service-accounts create dafax-relay --display-name="ballot fax relay"
+SA=dafax-relay@YOUR_PROJECT.iam.gserviceaccount.com
 gcloud storage buckets add-iam-policy-binding gs://YOUR_BUCKET \
   --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
 ```
@@ -109,6 +110,16 @@ gcloud run deploy dafax \
 
 Then set `BASE_URL` to the URL it prints and redeploy, and point the Telnyx
 application's webhook at `<that URL>/telnyx`.
+
+The redeploy is usually avoidable: the service URL is
+`https://<service>-<project number>.<region>.run.app`, so `BASE_URL` can be set
+before the first deploy and checked against what Cloud Run prints. Fall back to
+two passes if it ever differs.
+
+Two things that cost an hour each if you meet them cold: Google's frontend
+swallows `/healthz` on `*.run.app` and never forwards it to the container, so
+that route 404s there and is not a sign of a broken deploy; and the budget's
+currency must match the billing account's, not USD.
 
 Finally, cap the downside: a billing budget alert on the project, and
 `--max-instances 3` above, so neither traffic nor a bug can quietly run up a
