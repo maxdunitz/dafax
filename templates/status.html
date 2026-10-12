@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Sending to {{ job.to }}</h1>
+<p class="status" id="s">Queued&hellip;</p>
+<p class="muted">{{ job.pages }} page{{ '' if job.pages == 1 else 's' }}.
+   A fax takes about a minute a page. You can keep this page open.</p>
+<p class="muted" id="d"></p>
+<hr>
+<p class="muted"><strong>When this says delivered, delete the scan from your
+   phone.</strong> It is your voted ballot, and it does not need to stay in your
+   photos, your Notes or your iCloud backup.</p>
+<script>
+  var labels = {queued:"Queued…", preparing:"Preparing…",
+                sending:"Sending…", delivered:"Delivered",
+                failed:"Did not go through"};
+  var el = document.getElementById("s"), det = document.getElementById("d");
+  function tick() {
+    fetch({{ ("/j/" + job.job_id + ".json") | tojson }})
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        el.textContent = labels[j.status] || j.status;
+        el.className = "status" + (j.status === "delivered" ? " ok"
+                                 : j.status === "failed" ? " no" : "");
+        det.textContent = j.detail || "";
+        if (j.status !== "delivered" && j.status !== "failed") {
+          setTimeout(tick, 4000);
+        }
+      })
+      .catch(function () { setTimeout(tick, 8000); });
+  }
+  tick();
+</script>
+{% endblock %}

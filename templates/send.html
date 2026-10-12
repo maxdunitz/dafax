@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Fax your ballot to your clerk</h1>
+<p class="muted">Your ballot is sent straight to the fax number you enter and is
+deleted as soon as it goes through. Nothing about you is kept.</p>
+
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+  <label for="to">Your clerk's fax number</label>
+  <input id="to" name="to" type="tel" inputmode="tel" required
+         placeholder="(555) 555-0123" autocomplete="off">
+  <p class="muted">From your state's page on votefromabroad.org. US and Canadian
+     numbers only.</p>
+
+  <label for="doc">Your scan</label>
+  <input id="doc" name="doc" type="file" multiple required
+         accept="application/pdf,image/jpeg,image/png,image/heic,image/heif">
+  <p class="muted">One PDF, or photos of each page. Up to {{ max_pages }} pages
+     and {{ max_mb }} MB. Remember the signed cover sheet.</p>
+
+  {% if turnstile_site_key %}
+    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}"
+         style="margin-top:1.4rem"></div>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+            async defer></script>
+  {% endif %}
+
+  <button type="submit">Send fax</button>
+</form>
+{% endblock %}

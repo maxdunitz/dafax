@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Volunteer: start a fax{% endblock %}
+{% block body %}
+<h1>Have the voter scan this</h1>
+<img class="qr" src="data:image/png;base64,{{ qr }}" alt="QR code">
+<p class="muted">Good for <strong>one fax</strong>, for the next {{ minutes }} minutes.
+Reload this page for each new voter.</p>
+<hr>
+<p><strong>Say this to the voter:</strong></p>
+<ol>
+  <li>Scan their ballot with the <strong>Notes</strong> app &rarr; camera icon &rarr;
+      <em>Scan Documents</em>, and pick the <strong>Black &amp; White</strong> filter.</li>
+  <li>Scan this code, attach the PDF, type the fax number from their state's page
+      on votefromabroad.org.</li>
+  <li>Include the FVAP cover sheet, signed.</li>
+  <li>Once it says delivered, <strong>delete the scan from their phone</strong>
+      &mdash; it is their ballot and it should not stay in their Notes or iCloud.</li>
+</ol>
+<p class="muted">If you need to type the link instead:<br><code>{{ link }}</code></p>
+{% endblock %}

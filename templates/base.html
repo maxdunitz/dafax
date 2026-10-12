@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Fax a ballot{% endblock %}</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --muted:#555; --line:#ddd; --accent:#15509e;
+          --bad:#a3121f; --good:#116633; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161a; --fg:#f2f2f2; --muted:#a8aeb8; --line:#333842;
+            --accent:#7ba8e8; --bad:#ff8a8a; --good:#74d79b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 56px; background:var(--bg); color:var(--fg);
+         font:17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:34rem; margin:0 auto; }
+  h1 { font-size:1.45rem; margin:0 0 .6rem; }
+  p { margin:.6rem 0; }
+  .muted { color:var(--muted); font-size:.92rem; }
+  label { display:block; font-weight:600; margin:1.3rem 0 .35rem; }
+  input[type=tel], input[type=file] { width:100%; padding:.8rem; font-size:17px;
+         border:1px solid var(--line); border-radius:10px; background:var(--bg);
+         color:var(--fg); }
+  button { width:100%; margin-top:1.6rem; padding:.95rem; font-size:17px;
+         font-weight:600; border:0; border-radius:10px; background:var(--accent);
+         color:#fff; }
+  .err { margin:1rem 0; padding:.8rem 1rem; border-left:4px solid var(--bad);
+         background:color-mix(in srgb, var(--bad) 12%, transparent); }
+  .qr { display:block; width:min(280px,72vw); height:auto; margin:1.2rem auto;
+        image-rendering:pixelated; border:1px solid var(--line); border-radius:12px; }
+  code { word-break:break-all; font-size:.82rem; color:var(--muted); }
+  .status { font-size:1.2rem; font-weight:600; margin:.4rem 0 1rem; }
+  .ok { color:var(--good); } .no { color:var(--bad); }
+  ol { padding-left:1.3rem; } li { margin:.45rem 0; }
+  hr { border:0; border-top:1px solid var(--line); margin:1.8rem 0; }
+</style>
+</head>
+<body><main>{% block body %}{% endblock %}</main></body>
+</html>
