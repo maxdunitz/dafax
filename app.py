@@ -102,6 +102,16 @@ def base_url():
     return BASE_URL or request.url_root.rstrip("/")
 
 
+def public_base():
+    """Where we send people, which is not where Telnyx talks to us.
+
+    The QR code and the spoken address should both be the short domain, but
+    the media fetch and the webhook keep using BASE_URL so that a fax in
+    flight never depends on the custom domain or its certificate.
+    """
+    return ("https://" + PUBLIC_HOST) if PUBLIC_HOST else base_url()
+
+
 ## ---------------------------------------------------------------- volunteers
 
 
@@ -412,7 +422,7 @@ def index():
 def mint():
     """The page a volunteer keeps open at the table."""
     token = mint_token(request.authorization.username)
-    link = "%s/s/%s" % (base_url(), token)
+    link = "%s/s/%s" % (public_base(), token)
 
     img = qrcode.make(link)
     buf = io.BytesIO()
