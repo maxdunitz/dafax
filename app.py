@@ -54,6 +54,9 @@ VOLUNTEER_USER = (os.getenv("VOLUNTEER_USER") or "volunteer").strip()
 VOLUNTEER_PASS = (os.getenv("VOLUNTEER_PASS") or "").strip()
 
 BASE_URL = (os.getenv("BASE_URL") or "").rstrip("/")
+# What a volunteer reads down the phone. Telnyx keeps using BASE_URL, so the
+# fax path does not depend on the short domain staying up.
+PUBLIC_HOST = (os.getenv("PUBLIC_HOST") or "").strip().rstrip("/")
 GCS_BUCKET = os.environ["GCS_BUCKET"]
 
 TELNYX_API_KEY = os.getenv("TELNYX_API_KEY") or ""
@@ -135,7 +138,7 @@ def read_token(raw):
 # Crockford base32: no I, L, O or U, so nothing is ambiguous when it is read
 # down a phone line and nothing spells anything unfortunate.
 SHOUT_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-SHOUT_LEN = 8
+SHOUT_LEN = 6
 _SHOUT_FIX = str.maketrans({"I": "1", "L": "1", "O": "0"})
 
 
@@ -153,7 +156,8 @@ def normalize_shout_key(raw):
 
 
 def pretty_shout_key(code):
-    return "%s-%s" % (code[:4], code[4:])
+    half = SHOUT_LEN // 2
+    return "%s-%s" % (code[:half], code[half:])
 
 
 def store_shout_key(token):
@@ -164,9 +168,12 @@ def store_shout_key(token):
     moment the fax is sent or the token ages out. if_generation_match=0
     means two volunteers can never be handed the same code.
 
-    Eight characters is 40 bits. With twenty codes live at once a blind
-    guess lands about once in 55 billion tries, which is far past what the
-    daily page cap and the Telnyx balance would absorb anyway.
+    Six characters is 30 bits. With twenty codes live at once a blind guess
+    lands about once in 54 million tries, so this leans on rate limiting at
+    the edge rather than on entropy alone. What a hit actually buys is one
+    fax of at most MAX_PAGES pages to one US or Canadian number, counted
+    against the daily page cap and paid out of a deliberately small Telnyx
+    balance -- a junk fax, not a foothold.
     """
     for _ in range(5):
         code = new_shout_key()
@@ -366,17 +373,25 @@ def index():
     cannot show a screen can read a code down the line instead.
     """
     if request.method != "POST":
-        return render_template("index.html")
+        return render_template("index.html",
+                               turnstile_site_key=TURNSTILE_SITE_KEY)
+
+    def again(msg):
+        return render_template("index.html", error=msg,
+                               turnstile_site_key=TURNSTILE_SITE_KEY), 400
+
+    # Six characters is 30 bits, so this form is the one place worth making
+    # expensive to script against. Inert until TURNSTILE_SECRET is set.
+    if not turnstile_ok():
+        return again("That check did not pass. Please try again.")
 
     code = normalize_shout_key(request.form.get("code"))
     token = lookup_shout_key(code) if code else None
     # One message for every failure: a wrong code, an expired one and an
     # already-used one are deliberately indistinguishable from outside.
     if not token or not read_token(token):
-        return render_template(
-            "index.html",
-            error="That code did not work. It may have expired, or already "
-                  "been used. Ask the volunteer helping you for a new one."), 400
+        return again("That code did not work. It may have expired, or already "
+                     "been used. Ask the volunteer helping you for a new one.")
     return redirect(url_for("send_form", token=token))
 
 
@@ -395,7 +410,7 @@ def mint():
     code = store_shout_key(token)
     return render_template("mint.html", link=link, qr=qr,
                            code=pretty_shout_key(code) if code else None,
-                           host=base_url().split("://", 1)[-1],
+                           host=PUBLIC_HOST or base_url().split("://", 1)[-1],
                            minutes=TOKEN_TTL_SECONDS // 60)
 
 

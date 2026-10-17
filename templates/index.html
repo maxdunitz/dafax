@@ -2,16 +2,22 @@
 {% block title %}Fax a ballot{% endblock %}
 {% block body %}
 <h1>Enter your code</h1>
-<p class="muted">The volunteer helping you will read you an eight-character
+<p class="muted">The volunteer helping you will read you a six-character
    code. Type it below.</p>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
 <form method="post">
   <label for="code">Your code</label>
   <input type="text" id="code" name="code" required
-         placeholder="K4PM-R7TQ" autocomplete="off" autocapitalize="characters"
+         placeholder="K4P-R7T" autocomplete="off" autocapitalize="characters"
          autocorrect="off" spellcheck="false" inputmode="latin"
          aria-describedby="hint">
   <p class="muted" id="hint">Capitals and the dash do not matter.</p>
+  {% if turnstile_site_key %}
+    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}"
+         style="margin-top:1.4rem"></div>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+            async defer></script>
+  {% endif %}
   <button type="submit">Continue</button>
 </form>
 <hr>
