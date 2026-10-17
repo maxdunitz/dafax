@@ -69,6 +69,9 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES") or 20 * 1024 * 1024)
 MAX_PAGES = int(os.getenv("MAX_PAGES") or 10)
 DAILY_PAGE_CAP = int(os.getenv("DAILY_PAGE_CAP") or 200)
 MEDIA_URL_TTL = int(os.getenv("MEDIA_URL_TTL") or 900)
+# How many times one token may fail before it stops being released for
+# retry. Counted against the token, not the job: every retry is a new job.
+MAX_SEND_FAILURES = int(os.getenv("MAX_SEND_FAILURES") or 5)
 
 TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY") or ""
 TURNSTILE_SECRET = os.getenv("TURNSTILE_SECRET") or ""
@@ -153,6 +156,15 @@ def normalize_shout_key(raw):
     if len(s) != SHOUT_LEN or any(c not in SHOUT_ALPHABET for c in s):
         return None
     return s
+
+
+def human_ttl(seconds):
+    """'3 days' reads better on the mint page than '4320 minutes'."""
+    for unit, n in (("day", 86400), ("hour", 3600), ("minute", 60)):
+        if seconds >= n and seconds % n == 0:
+            v = seconds // n
+            return "%d %s%s" % (v, unit, "" if v == 1 else "s")
+    return "%d minutes" % max(1, seconds // 60)
 
 
 def pretty_shout_key(code):
@@ -411,7 +423,7 @@ def mint():
     return render_template("mint.html", link=link, qr=qr,
                            code=pretty_shout_key(code) if code else None,
                            host=PUBLIC_HOST or base_url().split("://", 1)[-1],
-                           minutes=TOKEN_TTL_SECONDS // 60)
+                           valid_for=human_ttl(TOKEN_TTL_SECONDS))
 
 
 @app.route("/s/<token>", methods=["GET"])
@@ -475,6 +487,10 @@ def send(token):
         pdf, content_type="application/pdf")
 
     job = {"job_id": job_id, "to": destination, "pages": pages,
+           # Kept so a failed send can release the token again. Not a
+           # credential on its own: the token itself is signed and is not
+           # stored anywhere.
+           "nonce": payload["n"],
            "minted_by": payload.get("by"), "status": "queued",
            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
            "detail": ""}
@@ -508,7 +524,8 @@ def send(token):
     # pointer home.
     bucket().blob("faxmap/%s" % fax_id).upload_from_string(job_id.encode())
 
-    return render_template("status.html", job=job), 202
+    return render_template("status.html", job=job,
+                           host=PUBLIC_HOST or base_url().split("://", 1)[-1]), 202
 
 
 @app.route("/m/<job_id>")
@@ -579,6 +596,35 @@ def telnyx_webhook():
                 bucket().blob(name).delete()
             except Exception as e:
                 print("cleanup of", name, "failed:", type(e).__name__, e)
+
+    # A clerk's line is busy more often than anything else goes wrong, and
+    # the token was already burned before Telnyx was ever called. Release it
+    # so the voter can re-enter the same spoken code instead of queueing for
+    # a new one -- the scan is gone either way, but the code need not be.
+    if event == "fax.failed" and job.get("nonce"):
+        # The counter lives beside the burn marker rather than on the job,
+        # because each retry is a fresh job and would otherwise reset it.
+        # The ".fails" suffix keeps it clear of the exact-name claim check
+        # while still inheriting the used/ lifecycle rule.
+        counter = bucket().blob("used/%s.fails" % job["nonce"])
+        try:
+            n = int(counter.download_as_bytes()) if counter.exists() else 0
+        except Exception:
+            n = 0
+        n += 1
+        try:
+            counter.upload_from_string(str(n).encode())
+        except Exception as e:
+            print("failure counter write failed:", type(e).__name__, e)
+
+        if n < MAX_SEND_FAILURES:
+            try:
+                bucket().blob("used/%s" % job["nonce"]).delete()
+                print("released token for retry:", job_id, "failure", n)
+            except Exception as e:
+                print("token release failed:", type(e).__name__, e)
+        else:
+            print("retry cap reached for", job_id, "after", n, "failures")
 
     return "", 204
 
@@ -683,7 +729,8 @@ def job_page(job_id):
     job = load_job(job_id)
     if not job:
         abort(404)
-    return render_template("status.html", job=job)
+    return render_template("status.html", job=job,
+                           host=PUBLIC_HOST or base_url().split("://", 1)[-1])
 
 
 @app.route("/j/<job_id>.json")

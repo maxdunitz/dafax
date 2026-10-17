@@ -3,7 +3,7 @@
 {% block body %}
 <h1>Start a fax</h1>
 <img class="qr" src="data:image/png;base64,{{ qr }}" alt="QR code">
-<p class="muted">Good for <strong>one fax</strong>, for the next {{ minutes }} minutes.
+<p class="muted">Good for <strong>one fax</strong>, for the next {{ valid_for }}.
 Reload this page for each new voter.</p>
 
 {% if code %}

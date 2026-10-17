@@ -5,6 +5,14 @@
 <p class="muted">{{ job.pages }} page{{ '' if job.pages == 1 else 's' }}.
    A fax takes about a minute a page. You can keep this page open.</p>
 <p class="muted" id="d"></p>
+
+<div id="retry" style="display:none">
+  <p class="err">That is almost always a busy line at the clerk's office, not
+     a problem with your scan. It is worth trying again right away.</p>
+  <p><strong>Your code still works.</strong> Go back to
+     <strong>{{ host }}</strong>, enter the same code, and send your scan
+     again. You do not need a new code from the volunteer.</p>
+</div>
 <hr>
 <p class="muted"><strong>When this says delivered, delete the scan from your
    phone.</strong> It is your voted ballot, and it does not need to stay in your
@@ -22,6 +30,9 @@
         el.className = "status" + (j.status === "delivered" ? " ok"
                                  : j.status === "failed" ? " no" : "");
         det.textContent = j.detail || "";
+        if (j.status === "failed") {
+          document.getElementById("retry").style.display = "block";
+        }
         if (j.status !== "delivered" && j.status !== "failed") {
           setTimeout(tick, 4000);
         }
