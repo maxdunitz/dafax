@@ -33,8 +33,8 @@ import qrcode
 import requests
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from flask import (Flask, Response, abort, jsonify, render_template, request,
-                   url_for)
+from flask import (Flask, Response, abort, jsonify, redirect, render_template,
+                   request, url_for)
 from google.cloud import storage
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from PIL import Image, ImageOps
@@ -127,6 +127,63 @@ def read_token(raw):
         return tokens.loads(raw, max_age=TOKEN_TTL_SECONDS)
     except (BadSignature, SignatureExpired):
         return None
+
+
+## ---------------------------------------------------------------- shout key
+
+
+# Crockford base32: no I, L, O or U, so nothing is ambiguous when it is read
+# down a phone line and nothing spells anything unfortunate.
+SHOUT_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+SHOUT_LEN = 8
+_SHOUT_FIX = str.maketrans({"I": "1", "L": "1", "O": "0"})
+
+
+def new_shout_key():
+    return "".join(secrets.choice(SHOUT_ALPHABET) for _ in range(SHOUT_LEN))
+
+
+def normalize_shout_key(raw):
+    """Accept what a voter actually types: case, spaces and hyphens are
+    noise, and I/L/O are what people write when they hear 1/1/0."""
+    s = re.sub(r"[^0-9A-Za-z]", "", raw or "").upper().translate(_SHOUT_FIX)
+    if len(s) != SHOUT_LEN or any(c not in SHOUT_ALPHABET for c in s):
+        return None
+    return s
+
+
+def pretty_shout_key(code):
+    return "%s-%s" % (code[:4], code[4:])
+
+
+def store_shout_key(token):
+    """A short code a volunteer can say out loud, pointing at a real token.
+
+    The code carries no authority of its own: expiry and single-use still
+    live in the signed token it resolves to, so a code is worthless the
+    moment the fax is sent or the token ages out. if_generation_match=0
+    means two volunteers can never be handed the same code.
+
+    Eight characters is 40 bits. With twenty codes live at once a blind
+    guess lands about once in 55 billion tries, which is far past what the
+    daily page cap and the Telnyx balance would absorb anyway.
+    """
+    for _ in range(5):
+        code = new_shout_key()
+        try:
+            bucket().blob("codes/%s" % code).upload_from_string(
+                token.encode(), if_generation_match=0)
+            return code
+        except Exception:
+            continue
+    return None
+
+
+def lookup_shout_key(code):
+    blob = bucket().blob("codes/%s" % code)
+    if not blob.exists():
+        return None
+    return blob.download_as_bytes().decode()
 
 
 def claim_token(nonce):
@@ -301,11 +358,26 @@ def healthz():
     return "ok", 200
 
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def index():
-    return ("This is a fax relay for in-person voter assistance. "
-            "Ask the volunteer helping you for the QR code.", 200,
-            {"Content-Type": "text/plain; charset=utf-8"})
+    """Where a voter being helped over the phone starts.
+
+    In person the QR code skips this entirely; this exists so a volunteer who
+    cannot show a screen can read a code down the line instead.
+    """
+    if request.method != "POST":
+        return render_template("index.html")
+
+    code = normalize_shout_key(request.form.get("code"))
+    token = lookup_shout_key(code) if code else None
+    # One message for every failure: a wrong code, an expired one and an
+    # already-used one are deliberately indistinguishable from outside.
+    if not token or not read_token(token):
+        return render_template(
+            "index.html",
+            error="That code did not work. It may have expired, or already "
+                  "been used. Ask the volunteer helping you for a new one."), 400
+    return redirect(url_for("send_form", token=token))
 
 
 @app.route("/mint")
@@ -320,7 +392,10 @@ def mint():
     img.save(buf, format="PNG")
     qr = base64.b64encode(buf.getvalue()).decode()
 
+    code = store_shout_key(token)
     return render_template("mint.html", link=link, qr=qr,
+                           code=pretty_shout_key(code) if code else None,
+                           host=base_url().split("://", 1)[-1],
                            minutes=TOKEN_TTL_SECONDS // 60)
 
 

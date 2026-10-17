@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Fax a ballot{% endblock %}
+{% block body %}
+<h1>Enter your code</h1>
+<p class="muted">The volunteer helping you will read you an eight-character
+   code. Type it below.</p>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post">
+  <label for="code">Your code</label>
+  <input type="text" id="code" name="code" required
+         placeholder="K4PM-R7TQ" autocomplete="off" autocapitalize="characters"
+         autocorrect="off" spellcheck="false" inputmode="latin"
+         aria-describedby="hint">
+  <p class="muted" id="hint">Capitals and the dash do not matter.</p>
+  <button type="submit">Continue</button>
+</form>
+<hr>
+<p class="muted">If you were given a QR code instead, scan it with your phone's
+   camera and you can skip this step.</p>
+{% endblock %}

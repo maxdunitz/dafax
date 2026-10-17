@@ -1,17 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Volunteer: start a fax{% endblock %}
 {% block body %}
-<h1>Have the voter scan this</h1>
+<h1>Start a fax</h1>
 <img class="qr" src="data:image/png;base64,{{ qr }}" alt="QR code">
 <p class="muted">Good for <strong>one fax</strong>, for the next {{ minutes }} minutes.
 Reload this page for each new voter.</p>
+
+{% if code %}
+<hr>
+<p><strong>On the phone?</strong> Tell the voter to go to
+   <strong>{{ host }}</strong> and read them this:</p>
+<p class="key">{{ code }}</p>
+<p class="muted">Say it letter by letter. There is no I, L, O or U in a code,
+   so if they hear one it was a 1, a 1, a 0 or a V.</p>
+{% else %}
+<p class="err">No phone code could be issued this time &mdash; the QR code
+   above still works. Reload to try again.</p>
+{% endif %}
+
 <hr>
 <p><strong>Say this to the voter:</strong></p>
 <ol>
   <li>Scan their ballot with the <strong>Notes</strong> app &rarr; camera icon &rarr;
       <em>Scan Documents</em>, and pick the <strong>Black &amp; White</strong> filter.</li>
-  <li>Scan this code, attach the PDF, type the fax number from their state's page
-      on votefromabroad.org.</li>
+  <li>Scan the QR code (or enter the code above), attach the PDF, type the fax
+      number from their state's page on votefromabroad.org.</li>
   <li>Include the FVAP cover sheet, signed.</li>
   <li>Once it says delivered, <strong>delete the scan from their phone</strong>
       &mdash; it is their ballot and it should not stay in their Notes or iCloud.</li>
